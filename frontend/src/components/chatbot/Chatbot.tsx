@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
+import { ChatMessage } from './ChatMessage'
+import { ChatInput } from './ChatInput'
+import { motion, AnimatePresence } from 'framer-motion'
+
 // Backend status indicator colors
 const STATUS_COLORS = {
   online: 'text-green-500',
   offline: 'text-red-500',
   unknown: 'text-zinc-400',
 };
-import { ChatMessage } from './ChatMessage'
-import { ChatInput } from './ChatInput'
-import { motion, AnimatePresence } from 'framer-motion'
 
 type Message = { role: 'user' | 'assistant'; content: string }
-
 
 export function Chatbot() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -39,7 +39,7 @@ export function Chatbot() {
   // Health check logic
   useEffect(() => {
     let abortController: AbortController | null = null;
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null; // ✅ FIXED
     let isMounted = true;
 
     const checkHealth = async () => {
@@ -49,16 +49,20 @@ export function Chatbot() {
         timeoutId = setTimeout(() => {
           abortController?.abort();
         }, 4000); // 4s timeout
+
         const res = await fetch(`${apiBaseUrl}/health`, {
           method: 'GET',
           signal: abortController.signal,
         });
+
         if (!res.ok) throw new Error('Backend returned error');
         if (isMounted) setBackendStatus('online');
       } catch (err: any) {
         if (isMounted) {
           setBackendStatus('offline');
-          setHealthCheckError(err.name === 'AbortError' ? 'Timeout' : err.message || 'Unknown error');
+          setHealthCheckError(
+            err.name === 'AbortError' ? 'Timeout' : err.message || 'Unknown error'
+          );
         }
       } finally {
         if (timeoutId) clearTimeout(timeoutId);
@@ -67,13 +71,13 @@ export function Chatbot() {
 
     checkHealth();
     const interval = setInterval(checkHealth, 10000); // poll every 10s
+
     return () => {
       isMounted = false;
       if (abortController) abortController.abort();
       if (timeoutId) clearTimeout(timeoutId);
       clearInterval(interval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBaseUrl]);
 
   // Send message to backend
@@ -104,12 +108,19 @@ export function Chatbot() {
         throw new Error(data.detail || 'Failed to get an answer from the AI.');
       }
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.answer }]);
-    } catch (error: any) {
-      const errorMessage = error?.message || 'Network error. Please make sure the backend is running.';
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: `Sorry, I encountered an error: ${errorMessage}` },
+        { role: 'assistant', content: data.answer }
+      ]);
+    } catch (error: any) {
+      const errorMessage =
+        error?.message || 'Network error. Please make sure the backend is running.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Sorry, I encountered an error: ${errorMessage}`,
+        },
       ]);
     } finally {
       setLoading(false);
@@ -125,9 +136,15 @@ export function Chatbot() {
         <div className="flex items-center justify-between px-2 py-2 mb-2">
           <div className="font-semibold text-lg text-zinc-100">Chatbot</div>
           <div className={`flex items-center gap-2 text-sm font-medium ${STATUS_COLORS[backendStatus]}`}>
-            <span className={`w-2 h-2 rounded-full ${
-              backendStatus === 'online' ? 'bg-green-500' : backendStatus === 'offline' ? 'bg-red-500' : 'bg-zinc-400'
-            }`} />
+            <span
+              className={`w-2 h-2 rounded-full ${
+                backendStatus === 'online'
+                  ? 'bg-green-500'
+                  : backendStatus === 'offline'
+                  ? 'bg-red-500'
+                  : 'bg-zinc-400'
+              }`}
+            />
             Backend: {backendStatus.charAt(0).toUpperCase() + backendStatus.slice(1)}
             {backendStatus === 'offline' && healthCheckError && (
               <span className="ml-2 text-zinc-400">({healthCheckError})</span>
@@ -157,7 +174,9 @@ export function Chatbot() {
                     <span className="text-2xl">✨</span>
                   </div>
                   <div>
-                    <h3 className="text-zinc-100 font-semibold text-lg mb-1">Get to know me</h3>
+                    <h3 className="text-zinc-100 font-semibold text-lg mb-1">
+                      Get to know me
+                    </h3>
                     <p className="text-zinc-500 text-sm max-w-[280px] leading-relaxed">
                       Ask about my specific skills, professional experience, or previous projects.
                     </p>
@@ -186,7 +205,12 @@ export function Chatbot() {
               </motion.div>
             )}
           </div>
-          <ChatInput onSend={handleSend} disabled={loading} isFirstTime={messages.length === 0} />
+
+          <ChatInput
+            onSend={handleSend}
+            disabled={loading}
+            isFirstTime={messages.length === 0}
+          />
         </motion.div>
       </div>
     </section>
